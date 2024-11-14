@@ -7,7 +7,7 @@ const port = process.env.PORT || 4000;
 
 app.use(express.json());
 app.use(cors({
-    origin:['http://localhost:3000', 'https://hotel-booking-system-gilt.vercel.app']
+    origin: ['http://localhost:3000', 'https://hotel-booking-system-gilt.vercel.app']
 }));
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
@@ -30,6 +30,7 @@ async function run() {
 
         const database = client.db("hotel-management");
         const allRegisteredUser = database.collection("allRegisteredUser");
+        const roomCollection = database.collection("rooms");
 
         // REGISTER
         app.post('/register', async (req, res) => {
@@ -53,7 +54,7 @@ async function run() {
                     data: result
                 })
             }
-        })
+        });
 
         // LOGIN
         app.post('/login', async (req, res) => {
@@ -72,6 +73,12 @@ async function run() {
                 res.status(401).send({ success: false, message: "Invalid Email/Password" });
             }
 
+        });
+
+        // GET ALL ROOMS
+        app.get('/rooms', async (req, res) => {
+            const allRooms = await roomCollection.find().toArray();
+            res.send({ data: allRooms })
         })
 
         // Send a ping to confirm a successful connection
