@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 4000;
 
@@ -10,9 +11,8 @@ app.use(cors({
     origin: ['http://localhost:3000', 'https://hotel-booking-system-gilt.vercel.app']
 }));
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
-const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.jcb8og7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
+const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.jcb8og7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
     serverApi: {
@@ -79,7 +79,15 @@ async function run() {
         app.get('/rooms', async (req, res) => {
             const allRooms = await roomCollection.find().toArray();
             res.send({ data: allRooms })
-        })
+        });
+
+        // GET SPECIFIC ROOM BY ID
+        app.get('/room/:id', async (req, res) => {
+            const roomId = req.params.id;
+            const query = { _id: new ObjectId(roomId) };
+            const roomDetails = await roomCollection.findOne(query);
+            res.send({ data: roomDetails })
+        });
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
