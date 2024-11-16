@@ -31,6 +31,7 @@ async function run() {
         const database = client.db("hotel-management");
         const allRegisteredUser = database.collection("allRegisteredUser");
         const roomCollection = database.collection("rooms");
+        const reservationCollection = database.collection("reservations");
 
         // REGISTER
         app.post('/register', async (req, res) => {
@@ -88,6 +89,25 @@ async function run() {
             const roomDetails = await roomCollection.findOne(query);
             res.send({ data: roomDetails })
         });
+
+        // BOOK ROOM
+        app.post('/book-room', async (req, res) => {
+            const bookRoomDetails = req?.body;
+            const result = await reservationCollection.insertOne(bookRoomDetails);
+            if (result?.insertedId) {
+                res.status(200).json({
+                    status: 200,
+                    message: 'Room Booked successfully',
+                    data: result
+                })
+            }else{
+                res.status(409).json({
+                    status: 409,
+                    message: 'Something went wrong',
+                    data: result
+                }) 
+            }
+        })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
