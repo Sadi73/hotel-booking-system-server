@@ -100,13 +100,21 @@ async function run() {
                     message: 'Room Booked successfully',
                     data: result
                 })
-            }else{
+            } else {
                 res.status(409).json({
                     status: 409,
                     message: 'Something went wrong',
                     data: result
-                }) 
+                })
             }
+        });
+
+        // GET RESERVATION BY EMAIL
+        app.get('/my-reservations', async (req, res) => {
+            const userEmail = req?.query?.email;
+            const query = { reservedBy: userEmail };
+            const result = await reservationCollection.find(query).toArray();
+            res.send({ data: result })
         })
 
         // Send a ping to confirm a successful connection
