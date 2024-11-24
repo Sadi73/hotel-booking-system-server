@@ -24,10 +24,6 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
-        // Connect the client to the server	(optional starting in v4.7)
-        // await client.connect();
-
-
         const database = client.db("hotel-management");
         const allRegisteredUser = database.collection("allRegisteredUser");
         const roomCollection = database.collection("rooms");
@@ -60,11 +56,8 @@ async function run() {
         // LOGIN
         app.post('/login', async (req, res) => {
             const user = req?.body;
-
             const query = { email: user?.email, password: user?.password };
-
             const registeredUser = await allRegisteredUser.findOne(query);
-
             if (registeredUser) {
                 const token = jwt.sign({
                     data: registeredUser?.email
@@ -115,6 +108,25 @@ async function run() {
             const query = { reservedBy: userEmail };
             const result = await reservationCollection.find(query).toArray();
             res.send({ data: result })
+        });
+
+        // ADD ROOM
+        app.post('/add-new-room', async (req, res) => {
+            const newRoom = req?.body;
+            const result = await roomCollection.insertOne(newRoom);
+            if (result?.insertedId) {
+                res.status(200).json({
+                    status: 200,
+                    message: 'New room created',
+                    data: result
+                })
+            } else {
+                res.status(409).json({
+                    status: 409,
+                    message: 'Something went wrong',
+                    data: result
+                })
+            }
         })
 
         // Send a ping to confirm a successful connection
