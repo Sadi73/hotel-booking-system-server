@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
@@ -8,7 +9,7 @@ const port = process.env.PORT || 4000;
 
 app.use(express.json());
 app.use(cors({
-    origin: ['http://localhost:3000', 'https://hotel-booking-system-gilt.vercel.app']
+    origin: ['http://localhost:3000', 'https://hotel-booking-system-gilt.vercel.app', 'http://192.168.1.12:3000']
 }));
 
 
@@ -33,28 +34,99 @@ async function run() {
         const roomCollection = database.collection("rooms");
         const reservationCollection = database.collection("reservations");
 
-        // REGISTER
+        // POST: Register User
         app.post('/register', async (req, res) => {
             const newUser = req.body;
-            delete newUser.confirmPassword;
             const query = { email: newUser?.email };
             const userExist = await allRegisteredUser.findOne(query);
-            if (userExist) {
+
+            if (userExist?.isVerified) {
                 return res.status(409).json({
                     status: 409,
                     message: 'User already exists',
-                    user: userExist // Optionally include existing user data if relevant
                 });
-            } else {
-                const result = await allRegisteredUser.insertOne(newUser);
+            }
 
-                // Respond with a success message and status
+            // Create JWT for email verification (valid for 24 hours)
+            const token = jwt.sign({ email: newUser.email }, process.env.SECRET_KEY, { expiresIn: '24h' });
+            newUser.verificationToken = token;
+            newUser.isVerified = false;
+            newUser.role = 'USER';
+
+            const result = userExist
+                ? await allRegisteredUser.updateOne(query, { $set: { verificationToken: token } })
+                : await allRegisteredUser.insertOne(newUser);
+
+            // Send verification email
+            // const verificationLink = `http://yourdomain.com/verify/${token}`;
+            const verificationLink = `http://192.168.1.6:4000/verify/${token}`;
+            const transporter = nodemailer.createTransport({
+                service: 'Gmail', // Or your preferred email service
+                auth: {
+                    user: 'saditanzim@gmail.com',
+                    pass: process.env.APP_PASSWORD,
+                },
+            });
+
+            const mailOptions = {
+                from: 'saditanzim@gmail.com',
+                to: newUser.email,
+                subject: 'Verify Your Email',
+                html: `<p>Click the link below to verify your email:</p>
+               <a href="${verificationLink}">${verificationLink}</a>`,
+            };
+
+            transporter.sendMail(mailOptions, (err, info) => {
+                if (err) {
+                    return res.status(500).json({
+                        status: 500,
+                        message: 'Error sending verification email',
+                        error: err
+                    });
+                }
+
                 res.status(201).json({
                     status: 201,
-                    message: 'User registered successfully',
-                    data: result
-                })
+                    message: 'User registered successfully. Please verify your email to complete the registration.',
+                    data: result,
+                });
+            });
+        });
+
+        // GET: Verify Email
+        app.get('/verify/:token', async (req, res) => {
+            const { token } = req.params;
+
+            const user = await allRegisteredUser.findOne({ verificationToken: token });
+
+            if (!user) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Invalid or expired verification link',
+                });
             }
+
+            // Mark the user as verified
+            const result = await allRegisteredUser.updateOne(
+                { verificationToken: token },
+                { $set: { isVerified: true }, $unset: { verificationToken: '' } }
+            );
+
+            if (result?.modifiedCount) {
+                return res.status(200).json({
+                    status: 200,
+                    message: 'Email verified successfully. Registration complete.',
+                    result
+                });
+            } else {
+                return res.status(200).json({
+                    status: 409,
+                    message: 'Email not verified. Please try again',
+                    result
+                });
+            }
+
+
         });
 
         // LOGIN
@@ -66,10 +138,14 @@ async function run() {
             const registeredUser = await allRegisteredUser.findOne(query);
 
             if (registeredUser) {
-                const token = jwt.sign({
-                    data: registeredUser?.email
-                }, process.env.SECRET_KEY, { expiresIn: 60 * 60 });
-                res.send({ success: true, user: registeredUser, token })
+                if (registeredUser?.isVerified) {
+                    const token = jwt.sign({
+                        data: registeredUser?.email
+                    }, process.env.SECRET_KEY, { expiresIn: 60 * 60 });
+                    res.send({ success: true, user: registeredUser, token })
+                } else {
+                    res.status(401).send({ success: false, message: "User not verified" });
+                }
             } else {
                 res.status(401).send({ success: false, message: "Invalid Email/Password" });
             }
